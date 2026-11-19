@@ -26,13 +26,14 @@
 | 기간 | 2026.10.26 ~ 10.28 (3일) |
 | 팀 | B반 1팀, 5명 |
 | 결과 | 우수상 (개발 부문) |
+| 상태 | 해커톤 종료. 남은 과제 1건(모델 장애 503 매핑) |
 | 내 담당 | 백엔드 C파트 (상담 API, 세션, 예외 처리) |
 | 프로젝트 기술 | Java 21, Spring Boot 4.1.2, Spring AI, MySQL, Gradle |
 | 제가 사용한 기술 | Java, Spring Boot, JUnit, Mockito, Git·GitHub |
 
 ### 어떤 문제를 다뤘나
 
-고객이 자기 상황에 맞는 상담 채널(챗봇·전화·이메일)을 스스로 고르기 어렵다는 문제를 다뤘습니다. 단기간 프로젝트여서 문제 조사보다 구현에 집중했고, 이 문서에서는 제가 맡은 구현 위주로 적습니다.
+고객이 자기 상황에 맞는 상담 채널(챗봇·전화·이메일)을 스스로 고르기 어렵다는 문제를 다뤘습니다. 단기간 프로젝트여서 문제 조사보다 구현에 집중했고, 이 문서에서는 제가 맡은 구현 위주로 적습니다. AI가 고객의 문장에서 조건을 읽고, 서버가 챗봇·전화·이메일을 점수로 비교해 순위와 이유를 알려 주는 방식으로 이 문제를 다뤘습니다.
 
 ### 팀이 만든 것과 제가 맡은 부분
 
@@ -60,6 +61,7 @@ A·B의 세부 구현(프롬프트, 배점 근거, 정책 데이터 출처)은 �
 - **입력 검증**: 빈 메시지와 1000자 초과 요청은 요청 검증 단계에서 400으로 거절
 - **예외 처리 통일**: 오류 응답을 `{ timestamp, code, message, path }` 형식으로 통일하고, 응답에는 내부 오류를 노출하지 않음. 컨트롤러 로그에는 메시지 원문 대신 길이만 기록
 - **CORS**: 프런트 개발 서버(`localhost:5173`, `127.0.0.1:5173`)에서 `/api/**` 호출을 허용
+- **달라진 점**: 종료된 세션에는 메시지를 보낼 수 없어 끝난 상담이 이어지지 않고, 잘못된 입력은 AI 파트까지 전달되지 않습니다.
 
 | 상태 | code | 상황 |
 | --- | --- | --- |
@@ -75,6 +77,16 @@ A·B의 세부 구현(프롬프트, 배점 근거, 정책 데이터 출처)은 �
 - 제 PR: [PR #1](https://github.com/won-way/backend/pull/1)
 - 구현 커밋: `d65220c` 상담 API·세션 수명주기(10/27 15:28), `012567c` CORS 허용(10/27 16:09)
 - 저장소: [github.com/won-way/backend](https://github.com/won-way/backend)
+
+근거 위치 (파일은 모두 `src/main/java/com/example/wonway/`, 테스트는 `src/test/java/com/example/wonway/` 아래):
+
+| 구현 | 코드 | 확인한 테스트 |
+| --- | --- | --- |
+| 동시 종료·세션 관리 | `session/InMemoryConsultationSessionService.java` (`closeSession`) | `InMemoryConsultationSessionServiceTest` · `동시에_종료를_요청해도_한_번만_성공한다` |
+| 입력 검증 | `api/dto/request/ConsultationMessageRequest.java` | `ConsultationControllerTest` · `잘못된_입력은_400이고_에이전트를_호출하지_않는다` |
+| 오류 응답 통일 | `api/GlobalExceptionHandler.java` | `ConsultationControllerTest` · `종료_후_메시지는_409이고_에이전트를_호출하지_않는다`, `존재하지_않는_세션은_404` |
+| AI 파트 없을 때 503 | `api/ConsultationController.java` (`ObjectProvider<AgentService>`) | `ConsultationControllerWithoutAgentTest` |
+| CORS | `api/config/CorsConfig.java` | `CorsConfigTest` |
 
 ### 트러블슈팅: AI 파트가 없는 상태에서 C파트를 따로 확인하기
 
@@ -93,7 +105,7 @@ A·B의 세부 구현(프롬프트, 배점 근거, 정책 데이터 출처)은 �
 - AI 도구가 짠 코드도 요청 흐름을 이해하고 확인해야 쓸 수 있다는 것을 배웠습니다.
 - 협업할 때는 담당 폴더를 나눠 제 영역(`api`, `session`)만 수정하고, 작업 브랜치에서 PR로 제출했습니다. API 키가 들어가는 `.env` 파일은 커밋하지 않았습니다.
 - 이후 PR #4에서 팀원이 응답 필드 확장, 응답 완료 로그, 종료 시 대화 메모리 삭제 연동을 구현했습니다(메모리 삭제는 제가 TODO로 남겨 둔 부분). 그래서 최종 응답은 제 초기 버전과 다릅니다.
-- 남은 과제: 모델 장애(타임아웃·빈 응답 등)를 503으로 매핑하는 처리는 아직 없고, 현재는 500으로 처리됩니다(코드에 TODO로 남겨 둠).
+- 다음 개선 행동: AI 파트가 장애 예외 타입을 정하면, 모델 장애(타임아웃·빈 응답 등)를 503으로 매핑합니다. 장애를 일으키는 테스트가 503을 돌려주면 완료로 봅니다. 현재는 500으로 처리되며 코드에 TODO로 남겨 두었습니다.
 
 ---
 
