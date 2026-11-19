@@ -25,7 +25,7 @@
 | 행사 | 우리WON 청년 IT 아카데미 AX 해커톤 (주제: 일상 속 금융 불편함을 AI로 해결하라) |
 | 기간 | 2026.10.26 ~ 10.28 (3일) |
 | 팀 | B반 1팀, 5명 |
-| 결과 | 우수상 (개발 부문) |
+| 결과 | 우수상 (개발 부문). 이름이 들어간 상장을 전달받는 중이라 아직 첨부하지 못했습니다 |
 | 상태 | 해커톤 종료. 남은 과제 1건(모델 장애 503 매핑) |
 | 내 담당 | 백엔드 C파트 (상담 API, 세션, 예외 처리) |
 | 프로젝트 기술 | Java 21, Spring Boot 4.1.2, Spring AI, MySQL, Gradle |
@@ -59,7 +59,7 @@ A·B의 세부 구현(프롬프트, 배점 근거, 정책 데이터 출처)은 �
 - **상담 세션 관리**: 상담 한 건마다 세션 ID를 발급해 대화를 이어 가고, 종료된 세션에는 메시지를 보낼 수 없게 처리
 - **동시 종료 처리**: 종료 요청이 동시에 들어와도 한 번만 성공하도록 ConcurrentHashMap의 원자적 `replace`로 구현
 - **입력 검증**: 빈 메시지와 1000자 초과 요청은 요청 검증 단계에서 400으로 거절
-- **예외 처리 통일**: 오류 응답을 `{ timestamp, code, message, path }` 형식으로 통일하고, 응답에는 내부 오류를 노출하지 않음. 컨트롤러 로그에는 메시지 원문 대신 길이만 기록
+- **예외 처리 통일**: 오류 응답을 `{ timestamp, code, message, path }` 형식으로 통일하고, 응답에는 내부 오류를 노출하지 않음. 컨트롤러 로그에는 메시지 원문 대신 길이만 기록하고, 예외 핸들러 로그에는 오류 내용이 남음
 - **CORS**: 프런트 개발 서버(`localhost:5173`, `127.0.0.1:5173`)에서 `/api/**` 호출을 허용
 - **달라진 점**: 종료된 세션에는 메시지를 보낼 수 없어 끝난 상담이 이어지지 않고, 잘못된 입력은 AI 파트까지 전달되지 않습니다.
 
@@ -73,20 +73,21 @@ A·B의 세부 구현(프롬프트, 배점 근거, 정책 데이터 출처)은 �
 
 ### 확인한 근거
 
-- 담당 영역의 테스트 18개를 작성했고(이후 PR #4에서 팀원이 일부 수정), 10/27 기준 통과를 확인했습니다. 수명주기, 세션 격리, 종료 후 409, 입력 오류, CORS를 다루고, 16개 스레드로 동시에 종료해도 한 번만 성공하는 테스트가 포함됩니다.
+- 담당 영역의 테스트 18개를 작성했고(이후 PR #4에서 팀원이 일부 수정), 10/27 기준 통과를 확인했습니다(당시 실행 기록은 노션에 있고, 실행 보고서는 첨부하지 않았습니다). 수명주기, 세션 격리, 종료 후 409, 입력 오류, CORS를 다루고, 16개 스레드로 동시에 종료해도 한 번만 성공하는 테스트가 포함됩니다.
+- 테스트 수 기준: 18개는 제 담당 4개 테스트 파일의 합계입니다(컨트롤러 9, 에이전트 없음 1, CORS 3, 세션 5). 최종 저장소에서도 같은 4개 파일의 합계는 18개이고, 앱 시작 테스트까지 세면 19개입니다.
 - 제 PR: [PR #1](https://github.com/won-way/backend/pull/1)
-- 구현 커밋: `d65220c` 상담 API·세션 수명주기(10/27 15:28), `012567c` CORS 허용(10/27 16:09)
+- 구현 커밋: [`d65220c`](https://github.com/won-way/backend/commit/d65220c) 상담 API·세션 수명주기(10/27 15:28), [`012567c`](https://github.com/won-way/backend/commit/012567c) CORS 허용(10/27 16:09)
 - 저장소: [github.com/won-way/backend](https://github.com/won-way/backend)
 
 근거 위치 (파일은 모두 `src/main/java/com/example/wonway/`, 테스트는 `src/test/java/com/example/wonway/` 아래):
 
 | 구현 | 코드 | 확인한 테스트 |
 | --- | --- | --- |
-| 동시 종료·세션 관리 | `session/InMemoryConsultationSessionService.java` (`closeSession`) | `InMemoryConsultationSessionServiceTest` · `동시에_종료를_요청해도_한_번만_성공한다` |
-| 입력 검증 | `api/dto/request/ConsultationMessageRequest.java` | `ConsultationControllerTest` · `잘못된_입력은_400이고_에이전트를_호출하지_않는다` |
-| 오류 응답 통일 | `api/GlobalExceptionHandler.java` | `ConsultationControllerTest` · `종료_후_메시지는_409이고_에이전트를_호출하지_않는다`, `존재하지_않는_세션은_404` |
-| AI 파트 없을 때 503 | `api/ConsultationController.java` (`ObjectProvider<AgentService>`) | `ConsultationControllerWithoutAgentTest` |
-| CORS | `api/config/CorsConfig.java` | `CorsConfigTest` |
+| 동시 종료·세션 관리 | [`session/InMemoryConsultationSessionService.java`](https://github.com/won-way/backend/blob/main/src/main/java/com/example/wonway/session/InMemoryConsultationSessionService.java) (`closeSession`) | [`InMemoryConsultationSessionServiceTest`](https://github.com/won-way/backend/blob/main/src/test/java/com/example/wonway/session/InMemoryConsultationSessionServiceTest.java) · `동시에_종료를_요청해도_한_번만_성공한다` |
+| 입력 검증 | [`api/dto/request/ConsultationMessageRequest.java`](https://github.com/won-way/backend/blob/main/src/main/java/com/example/wonway/api/dto/request/ConsultationMessageRequest.java) | [`ConsultationControllerTest`](https://github.com/won-way/backend/blob/main/src/test/java/com/example/wonway/api/ConsultationControllerTest.java) · `잘못된_입력은_400이고_에이전트를_호출하지_않는다` |
+| 오류 응답 통일 | [`api/GlobalExceptionHandler.java`](https://github.com/won-way/backend/blob/main/src/main/java/com/example/wonway/api/GlobalExceptionHandler.java) | [`ConsultationControllerTest`](https://github.com/won-way/backend/blob/main/src/test/java/com/example/wonway/api/ConsultationControllerTest.java) · `종료_후_메시지는_409이고_에이전트를_호출하지_않는다`, `존재하지_않는_세션은_404` |
+| AI 파트 없을 때 503 | [`api/ConsultationController.java`](https://github.com/won-way/backend/blob/main/src/main/java/com/example/wonway/api/ConsultationController.java) (`ObjectProvider<AgentService>`) | [`ConsultationControllerWithoutAgentTest`](https://github.com/won-way/backend/blob/main/src/test/java/com/example/wonway/api/ConsultationControllerWithoutAgentTest.java) |
+| CORS | [`api/config/CorsConfig.java`](https://github.com/won-way/backend/blob/main/src/main/java/com/example/wonway/api/config/CorsConfig.java) | [`CorsConfigTest`](https://github.com/won-way/backend/blob/main/src/test/java/com/example/wonway/api/CorsConfigTest.java) |
 
 ### 트러블슈팅: AI 파트가 없는 상태에서 C파트를 따로 확인하기
 
